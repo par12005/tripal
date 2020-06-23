@@ -86,7 +86,7 @@ class ChadoRecord {
 
   /**
    * @var string
-   *   Holds the name of the table that this record belogns to.
+   *   Holds the name of the table that this record belongs to.
    */
   protected $table_name = '';
 
@@ -133,6 +133,14 @@ class ChadoRecord {
    */
   protected $column_names = [];
 
+  /**
+   * InsertPartitionLimit used to batch inserts.
+   *
+   * @var array
+   */
+  protected $insert_partition_limit = 10000;
+
+
 
   /**
    * The ChadoRecord constructor
@@ -145,6 +153,8 @@ class ChadoRecord {
    */
   public function __construct($table_name, $record_id = NULL) {
 
+    
+
     if (!$table_name) {
       $message = t('ChadoRecord::_construct(). The $table_name argument is required for a ChadoRecord instance.');
       throw new Exception($message);
@@ -152,12 +162,19 @@ class ChadoRecord {
 
     // Set the table name and schema.
     $this->table_name = $table_name;
+
+    $this->getTableColumns();
+
+    
+    //(Rish) ERROR: This code doesn't seem to work properly - tried this with organism table but it shows the Exception
+    //(Rish) This pretty much breaks the rest of code execution for this constructor.
     $this->schema = chado_get_schema($this->table_name);
     if (!$this->schema) {
       $message = t('ChadoRecord::_construct(). Could not find a matching table schema in Chado for the table: !table.',
         ['!table' => $this->table_name]);
       throw new Exception($message);
     }
+    
 
     // Chado tables never have more than one column as a primary key so
     // we are good just getting the first element.
@@ -211,6 +228,23 @@ class ChadoRecord {
   }
 
   /**
+   * Retrieves column names from the table
+   * 
+   * @return array
+   * The columns of the table
+   */
+  public function getTableColumns() {
+    $columns = [];
+    $column_results = chado_query("SELECT * FROM information_schema.columns WHERE table_schema = 'chado' AND table_name  = :table;", array(
+      ':table' => $this->getTable()
+    ));
+    foreach ($column_results as $column_result) {
+      $columns[] = $column_result->column_name;
+    }
+    return $columns; 
+  }
+
+  /**
    * Retrieves the record ID.
    *
    * @return number
@@ -238,6 +272,24 @@ class ChadoRecord {
   public function getSchema() {
     return $this->schema;
   }
+
+   /**
+   * Retrieves the insert parition limit value used to batch inserts.
+   *
+   * @return int
+   *   The value of the insert parition limit.
+   */
+  public function getInsertPartitionLimit() {
+    return $this->insert_partition_limit;
+  } 
+
+   /**
+   * Set the insert parition limit value used to batch inserts.
+   *
+   */
+  public function setInsertPartitionLimit($value) {
+    $this->insert_partition_limit = $value;
+  }   
 
   /**
    * Performs either an update or insert into the table using the values.
@@ -270,6 +322,47 @@ class ChadoRecord {
           '!error' => $e->getMessage(),
         ]);
       throw new Exception($message);
+    }
+  }
+
+  /**
+   *  Inserts multiple rows using a db_insert object where
+   *  $records is an array of form array('col1' => $i, ...)
+   * 
+   *  //Initial sample code was provided here: https://github.com/tripal/tripal/issues/1068
+   * 
+   *  @throws Exception
+   */
+  public function insertMultiple($records) {
+    /**
+     * The for statement might be a little hard to read, please remember the specific order matters for accuracy.
+     */
+
+    $partition_limit = getInsertPartitionLimit(); //Number of records to process at a time (we will call this a partition)
+    $records_count = count($records);
+
+    if ($records_count < 1) {
+      $message = t('ChadoRecord::insertMultiple(). Could not insert a record into the table !table, no records provided.',
+        ['!table' => $this->table_name]);
+      throw new Exception($message);
+    }    
+
+
+    //Iterate through each record
+    for($i = 0; $i < $records_count; $i++) {
+      if($i % $partition_limit == 0) { //If partition_limit has been met during iterations
+        if($i > 0) { //we want to execute only after the start, not when $i == 0
+          $insert->execute();
+        }
+        $insert = db_insert(getTable())->fields($this->column_names); //create insert object at start or every partition of records
+      }
+
+      $insert->values($records[$i]); //Always add values to the insert object per record
+
+      if($i == ($records_count - 1)) { //cater for if $i never reaches the partition_limit, we need to finish off with an execute command
+        $insert->execute();
+      }
+
     }
   }
 
@@ -684,4 +777,31 @@ class ChadoRecord {
     // Return the number of matches.
     return $num_matches;
   }
+
+
 }
+
+/**
+ * This function is purely to test the insertMultiple function
+ * It unfortunately does not work because we have an error with the constructor of ChadoRecord
+ * not being able to retrieve the table schema for 'organism'
+ * 
+ * @todo Need constructor issue resolved
+ * @todo Need this function to work once latter is resolved.
+ */
+
+function ChadoRecord_test_insertMultiple() {
+  //$recordManager = new \ChadoRecord('organism', null);
+  //print_r($recordManager->column_names);
+  //dpm(chado_get_schema('organism'));
+  //var_dump(chado_get_schema('organism'));
+  //$recordManager->insertMultiple(array('testcol' => 'val'));
+
+  /*
+  for($i = 0; $i < 1000; $i++) {
+
+  }
+  */
+}
+
+ChadoRecord_test_insertMultiple();
