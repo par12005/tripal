@@ -366,7 +366,8 @@ function chado_get_version($exact = FALSE, $warn_if_unsupported = FALSE) {
   $chado_exists = FALSE;
 
   // Check that Chado is installed if not return 'uninstalled as the version'
-  $is_local = isset($GLOBALS["chado_is_local"]) && $GLOBALS["chado_is_local"];
+  //$is_local = isset($GLOBALS["chado_is_local"]) && $GLOBALS["chado_is_local"];
+  $is_local = chado_is_local();
   if (!$is_local) {
     // If it's not in the drupal database check to see if it's specified in
     // the $db_url in the settings.php

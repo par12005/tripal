@@ -338,7 +338,7 @@ class ChadoRecord {
      * The for statement might be a little hard to read, please remember the specific order matters for accuracy.
      */
 
-    $partition_limit = getInsertPartitionLimit(); //Number of records to process at a time (we will call this a partition)
+    $partition_limit = $this->getInsertPartitionLimit(); //Number of records to process at a time (we will call this a partition)
     $records_count = count($records);
 
     if ($records_count < 1) {
@@ -354,7 +354,7 @@ class ChadoRecord {
         if($i > 0) { //we want to execute only after the start, not when $i == 0
           $insert->execute();
         }
-        $insert = db_insert(getTable())->fields($this->column_names); //create insert object at start or every partition of records
+        $insert = db_insert(chado_get_schema_name('chado') . '.' . $this->getTable())->fields($this->column_names); //create insert object at start or every partition of records
       }
 
       $insert->values($records[$i]); //Always add values to the insert object per record
@@ -362,7 +362,6 @@ class ChadoRecord {
       if($i == ($records_count - 1)) { //cater for if $i never reaches the partition_limit, we need to finish off with an execute command
         $insert->execute();
       }
-
     }
   }
 
@@ -783,25 +782,34 @@ class ChadoRecord {
 
 /**
  * This function is purely to test the insertMultiple function
- * It unfortunately does not work because we have an error with the constructor of ChadoRecord
- * not being able to retrieve the table schema for 'organism'
+ * Be careful! This assumes you don't have valid data in organism table!
  * 
  * @todo Need constructor issue resolved
  * @todo Need this function to work once latter is resolved.
  */
 
 function ChadoRecord_test_insertMultiple() {
-  //$recordManager = new \ChadoRecord('organism', null);
-  //print_r($recordManager->column_names);
-  //dpm(chado_get_schema('organism'));
-  //var_dump(chado_get_schema('organism'));
-  //$recordManager->insertMultiple(array('testcol' => 'val'));
-
-  /*
-  for($i = 0; $i < 1000; $i++) {
-
+  $recordManager = new \ChadoRecord('organism', null);
+  $recordManager->setInsertPartitionLimit(10000);//will do inserts per 10000 records
+  
+  $test_records_count = 50000;//change this to create this amount of test records
+  $records = array();
+  for($i = 1; $i <= $test_records_count; $i++) {
+    $records[] = array(
+      'organism_id' => $i,
+      'abbreviation' => "abcd$i",
+      'genus' => "efgh$i",
+      'species' => "ijk$i",
+      'common_name' => "lmn$i",
+      'infraspecific_name' => "opq$i",
+      'type_id' => 1,
+      'comment' => "comment $i"
+    );
   }
-  */
+  $start_time = microtime();
+  $recordManager->insertMultiple($records);
+  $end_time = microtime();
+  dpm('Finished ChadoRecord_test_insertMultiple()');
+  $time_taken = floatval($end_time) - floatval($start_time);
+  dpm($time_taken . ' ms');  
 }
-
-ChadoRecord_test_insertMultiple();
