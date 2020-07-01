@@ -333,7 +333,7 @@ class ChadoRecord {
    * 
    *  @throws Exception
    */
-  public function insertMultiple($records) {
+  public function insertMultiple($records, array $options = array()) {
     /**
      * The for statement might be a little hard to read, please remember the specific order matters for accuracy.
      */
@@ -349,20 +349,23 @@ class ChadoRecord {
 
 
     //Iterate through each record
+    $result = NULL;
     for($i = 0; $i < $records_count; $i++) {
       if($i % $partition_limit == 0) { //If partition_limit has been met during iterations
         if($i > 0) { //we want to execute only after the start, not when $i == 0
-          $insert->execute();
+          $result = $insert->execute();
         }
-        $insert = db_insert(chado_get_schema_name('chado') . '.' . $this->getTable())->fields($this->column_names); //create insert object at start or every partition of records
+        $insert = db_insert(chado_get_schema_name('chado') . '.' . $this->getTable(), $options)
+          ->fields($this->column_names); //create insert object at start or every partition of records
       }
 
       $insert->values($records[$i]); //Always add values to the insert object per record
 
       if($i == ($records_count - 1)) { //cater for if $i never reaches the partition_limit, we need to finish off with an execute command
-        $insert->execute();
+        $result = $insert->execute();
       }
     }
+    return $result;
   }
 
   /**
