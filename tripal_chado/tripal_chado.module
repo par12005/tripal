@@ -38,6 +38,7 @@ require_once 'api/tripal_chado.migrate.api.inc';
 require_once 'api/tripal_chado.DEPRECATED.api.inc';
 require_once 'api/ChadoSchema.inc';
 require_once 'api/ChadoRecord.inc';
+require_once 'api/ChadoRecordList.inc';
 
 // Chado module specific API functions
 require_once 'api/modules/tripal_chado.analysis.api.inc';
